@@ -54,7 +54,9 @@ func (x customSort) Len() int           { return len(x.t) }
 func (x customSort) Less(i, j int) bool { return x.less(x.t[i], x.t[j]) }
 func (x customSort) Swap(i, j int)      { x.t[i], x.t[j] = x.t[j], x.t[i] }
 
-func greedy(items []Food, maxCost float64, compFunc func(x, y Food) bool) ([]Food, float64) {
+type CompFunction func(x, y Food) bool
+
+func greedy(items []Food, maxCost float64, compFunc CompFunction) ([]Food, float64) {
 	//var itemsCopy []Food
 	//copy(itemsCopy, items)
 	itemsCopy := items[:]
@@ -78,7 +80,7 @@ func greedy(items []Food, maxCost float64, compFunc func(x, y Food) bool) ([]Foo
 	return result, totalValue
 }
 
-func testGreedy(items []Food, constraint float64, compFunc func(x, y Food) bool) {
+func testGreedy(items []Food, constraint float64, compFunc CompFunction) {
 	taken, val := greedy(items, constraint, compFunc)
 	fmt.Println("Total value of items taken =", val)
 	for _, item := range taken {
@@ -91,18 +93,19 @@ func testGreedys(foods []Food, maxUnits float64) {
 	testGreedy(foods, maxUnits, func(x, y Food) bool {
 		return x.getValue() > y.getValue()
 	})
-
 	fmt.Println()
+
 	fmt.Println("Use greedy by cost to allocate", maxUnits, "calories")
 	testGreedy(foods, maxUnits, func(x, y Food) bool {
 		return x.getCost() < y.getCost()
 	})
-
 	fmt.Println()
+
 	fmt.Println("Use greedy by density to allocate", maxUnits, "calories")
 	testGreedy(foods, maxUnits, func(x, y Food) bool {
 		return x.density() > y.density()
 	})
+	fmt.Println()
 }
 
 func main() {
@@ -110,10 +113,10 @@ func main() {
 	values := [...]float64{89, 90, 95, 100, 90, 79, 50, 10}
 	calories := [...]float64{123, 154, 258, 354, 365, 150, 95, 195}
 	foods := buildMenu(names[:], values[:], calories[:])
-	for _, f := range foods {
-		fmt.Println(f)
-	}
+	fmt.Println("menu =", foods)
+	fmt.Println()
 
 	testGreedys(foods, 750.0)
+	testGreedys(foods, 800.0)
 	testGreedys(foods, 1000.0)
 }
