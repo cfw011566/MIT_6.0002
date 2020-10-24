@@ -12,21 +12,17 @@ func fib(n int) int {
 	return fib(n-1) + fib(n-2)
 }
 
-func fastFib(n *big.Int, memo map[string]big.Int) big.Int {
-	if n.Cmp(big.NewInt(0)) == 0 || n.Cmp(big.NewInt(1)) == 0 {
+func fastFib(n int, memo map[int]big.Int) big.Int {
+	if n == 0 || n == 1 {
 		return *big.NewInt(1)
 	}
-	val, ok := memo[n.Text(10)]
+	val, ok := memo[n]
 	if !ok {
-		var n1 big.Int
-		var n2 big.Int
-		n1.Sub(n, big.NewInt(1))
-		n2.Sub(n, big.NewInt(2))
-		n1 = fastFib(&n1, memo)
-		n2 = fastFib(&n2, memo)
-		var result big.Int
+		var n1, n2, result big.Int
+		n1 = fastFib(n-1, memo)
+		n2 = fastFib(n-2, memo)
 		result.Add(&n1, &n2)
-		memo[n.Text(10)] = result
+		memo[n] = result
 		return result
 	}
 	return val
@@ -35,9 +31,9 @@ func fastFib(n *big.Int, memo map[string]big.Int) big.Int {
 func main() {
 	for i := 1; i <= 120; i++ {
 		//fmt.Println("fib(", i, ") =", fib(i))
-		memo := make(map[string]big.Int)
+		memo := make(map[int]big.Int)
 		var f big.Int
-		f = fastFib(big.NewInt(int64(i)), memo)
-		fmt.Println("fib(", i, ") =", f.Text(10))
+		f = fastFib(i, memo)
+		fmt.Printf("fib(%d) = %s\n", i, f.Text(10))
 	}
 }
