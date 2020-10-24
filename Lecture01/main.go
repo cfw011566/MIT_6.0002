@@ -12,20 +12,14 @@ type Food struct {
 	calories float64
 }
 
-func (f Food) getValue() float64 {
-	return f.value
-}
+func (f Food) getValue() float64 { return f.value }
 
-func (f Food) getCost() float64 {
-	return f.calories
-}
+func (f Food) getCost() float64 { return f.calories }
 
-func (f Food) density() float64 {
-	return f.value / f.calories
-}
+func (f Food) density() float64 { return f.value / f.calories }
 
 func (f Food) String() string {
-	return fmt.Sprintf("%s: <%.2f, %.2f>", f.name, f.value, f.calories)
+	return fmt.Sprintf("%s: <%.0f, %.0f>", f.name, f.value, f.calories)
 }
 
 // names, vallues, calories list the same length.
@@ -57,12 +51,10 @@ func (x customSort) Swap(i, j int)      { x.t[i], x.t[j] = x.t[j], x.t[i] }
 type CompFunction func(x, y Food) bool
 
 func greedy(items []Food, maxCost float64, compFunc CompFunction) ([]Food, float64) {
-	//var itemsCopy []Food
-	//copy(itemsCopy, items)
 	itemsCopy := items[:]
 
 	sort.Sort(customSort{itemsCopy, compFunc})
-	fmt.Println(itemsCopy)
+	//fmt.Println(itemsCopy)
 
 	var result []Food
 	totalValue := 0.0
@@ -91,13 +83,13 @@ func testGreedy(items []Food, constraint float64, compFunc CompFunction) {
 func testGreedys(foods []Food, maxUnits float64) {
 	fmt.Println("Use greedy by value to allocate", maxUnits, "calories")
 	testGreedy(foods, maxUnits, func(x, y Food) bool {
-		return x.getValue() > y.getValue()
+		return x.value > y.value
 	})
 	fmt.Println()
 
 	fmt.Println("Use greedy by cost to allocate", maxUnits, "calories")
 	testGreedy(foods, maxUnits, func(x, y Food) bool {
-		return x.getCost() < y.getCost()
+		return x.calories < y.calories
 	})
 	fmt.Println()
 
@@ -117,6 +109,6 @@ func main() {
 	fmt.Println()
 
 	testGreedys(foods, 750.0)
-	testGreedys(foods, 800.0)
-	testGreedys(foods, 1000.0)
+	//testGreedys(foods, 800.0)
+	//testGreedys(foods, 1000.0)
 }
