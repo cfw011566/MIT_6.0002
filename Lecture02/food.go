@@ -103,7 +103,7 @@ func testGreedys(foods []Food, maxUnits int) {
 func maxVal(toConsider []Food, avail int) (int, []Food) {
 	var taken []Food
 	var val int
-	if len(toConsider) == 0 || avail == 0.0 {
+	if len(toConsider) == 0 || avail == 0 {
 		val, taken = 0, nil
 	} else if toConsider[0].getCost() > avail {
 		// Explore right branch only
@@ -149,6 +149,53 @@ func buildLargeMenu(numItems int, maxVal int, maxCost int) []Food {
 	return items
 }
 
+type Result struct {
+	val   int
+	taken []Food
+}
+
+func fastMaxVal(toConsider []Food, avail int, memo map[string]Result) (int, []Food) {
+	var taken []Food
+	var val int
+	key := fmt.Sprintf("len=%d,avail=%d", len(toConsider), avail)
+	r, ok := memo[key]
+	if ok {
+		val, taken = r.val, r.taken
+	} else if len(toConsider) == 0 || avail == 0 {
+		val, taken = 0, nil
+	} else if toConsider[0].getCost() > avail {
+		// Explore right branch only
+		val, taken = fastMaxVal(toConsider[1:], avail, memo)
+	} else {
+		nextItem := toConsider[0]
+		// Explore left branch
+		withVal, withToTake := fastMaxVal(toConsider[1:], avail-nextItem.getCost(), memo)
+		withVal += nextItem.getValue()
+		// Explore right branch
+		withoutVal, withoutToTake := fastMaxVal(toConsider[1:], avail, memo)
+		// Choose better branch
+		if withVal > withoutVal {
+			val, taken = withVal, append(withToTake, nextItem)
+		} else {
+			val, taken = withoutVal, withoutToTake
+		}
+	}
+	memo[key] = Result{val, taken}
+	return val, taken
+}
+
+func testFastMaxVal(foods []Food, maxUnits int, printItems bool) {
+	fmt.Println("Use search tree to allocate", maxUnits, "calories")
+	memo := make(map[string]Result)
+	val, taken := fastMaxVal(foods, maxUnits, memo)
+	fmt.Println("Total value of items taken =", val)
+	if printItems {
+		for _, item := range taken {
+			fmt.Println("   ", item)
+		}
+	}
+}
+
 func main() {
 	names := [...]string{"wine", "beer", "pizza", "burger", "fries", "cola", "apple", "donut", "cake"}
 	values := [...]int{89, 90, 95, 100, 90, 79, 50, 10}
@@ -162,13 +209,18 @@ func main() {
 	//testGreedys(foods, 1000)
 
 	testMaxVal(foods, 750, true)
+	testFastMaxVal(foods, 750, true)
 
+	fmt.Println()
 	rand.Seed(time.Now().UTC().UnixNano())
-	for numItems := 5; numItems < 50; numItems += 5 {
+	for numItems := 5; numItems <= 50; numItems += 5 {
 		fmt.Println("Try a menu with", numItems, "items")
 		items := buildLargeMenu(numItems, 90, 250)
 		start := time.Now()
 		testMaxVal(items, 750, false)
-		fmt.Printf("%.2fs elapsed\n", time.Since(start).Seconds())
+		fmt.Printf("maxVal %.2fs elapsed\n", time.Since(start).Seconds())
+		start = time.Now()
+		testFastMaxVal(items, 750, false)
+		fmt.Printf("fastMaxVal %.2fs elapsed\n", time.Since(start).Seconds())
 	}
 }
