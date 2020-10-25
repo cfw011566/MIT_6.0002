@@ -18,12 +18,10 @@ func fastFib(n int, memo map[int]big.Int) big.Int {
 	}
 	val, ok := memo[n]
 	if !ok {
-		var n1, n2, result big.Int
-		n1 = fastFib(n-1, memo)
-		n2 = fastFib(n-2, memo)
-		result.Add(&n1, &n2)
-		memo[n] = result
-		return result
+		n1 := fastFib(n-1, memo)
+		n2 := fastFib(n-2, memo)
+		memo[n] = *(new(big.Int).Add(&n1, &n2))
+		return memo[n]
 	}
 	return val
 }
