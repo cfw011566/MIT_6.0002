@@ -6,6 +6,11 @@ import (
 	"log"
 	"math"
 	"math/rand"
+
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/plotutil"
+	"gonum.org/v1/plot/vg"
 )
 
 // Location
@@ -33,6 +38,7 @@ type Drunk struct {
 	stepChoices []Location
 }
 
+func (d Drunk) Name() string { return d.name }
 func (d Drunk) String() string {
 	return fmt.Sprintf("name=%q, steps=%v", d.name, d.stepChoices)
 }
@@ -137,22 +143,146 @@ func drunkTest(walkLengths []int, numTrials int, dClass Drunk) {
 	}
 }
 
-func main() {
-	//rand.Seed(time.Now().UTC().UnixNano())
-	test()
+func simDrunk(numTrials int, dClass Drunk, walkLengths []int) []float64 {
+	var meanDistances []float64
+	for _, numSteps := range walkLengths {
+		fmt.Println("Start simulation of", numSteps, "steps")
+		trials := simWalks(numSteps, numTrials, dClass)
+		sum := 0.0
+		for _, d := range trials {
+			sum += d
+		}
+		mean := sum / float64(len(trials))
+		meanDistances = append(meanDistances, mean)
+	}
 
-	steps := []Location{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
-	usualDrunk := Drunk{"usual", steps}
-
-	steps = []Location{{0.0, 1.1}, {0.0, -0.9}, {1.0, 0.0}, {-1.0, 0.0}}
-	masochistDrunk := Drunk{"masochist", steps}
-
-	testSteps := [...]int{1000, 10000}
-	drunkTest(testSteps[:], 100, usualDrunk)
-	drunkTest(testSteps[:], 100, masochistDrunk)
+	return meanDistances
 }
 
-func test() {
+func simAll(drunkKinds []Drunk, walkLengths []int, numTrials int) {
+	p, err := plot.New()
+	if err != nil {
+		log.Fatalln("plot.New()", err)
+		return
+	}
+
+	p.Title.Text = fmt.Sprintf("Mean Distance from Origin (%d) trials", numTrials)
+	p.X.Label.Text = "Number of Steps"
+	p.Y.Label.Text = "Distance from Origin"
+	p.Add(plotter.NewGrid())
+
+	for d, dClass := range drunkKinds {
+		fmt.Println("Start simulation of", dClass)
+		means := simDrunk(numTrials, dClass, walkLengths)
+		fmt.Println("means =", means)
+		pts := make(plotter.XYs, len(walkLengths))
+		for i, w := range walkLengths {
+			pts[i].X = float64(w)
+			pts[i].Y = means[i]
+		}
+		lpLine, lpPoints, err := plotter.NewLinePoints(pts)
+		if err != nil {
+			log.Fatalln("plot.NewLinePoints()", err)
+			continue
+		}
+		lpLine.Color = plotutil.Color(d)
+		lpLine.Dashes = plotutil.Dashes(d)
+		lpPoints.Shape = plotutil.Shape(d)
+		lpPoints.Color = plotutil.Color(d)
+
+		p.Add(lpPoints, lpLine)
+		p.Legend.Add(dClass.name, lpLine, lpPoints)
+
+		//if err = plotutil.AddLinePoints(p, dClass.name, pts); err != nil {
+		//	log.Fatalln("AddLinePoints", err)
+		//}
+	}
+
+	if err := p.Save(8*vg.Inch, 8*vg.Inch, "points.png"); err != nil {
+		log.Fatalln("plot.Save()", err)
+		return
+	}
+}
+
+func getFinalLocs(numSteps int, numTrials int, dClass Drunk) []Location {
+	var locs []Location
+	for t := 0; t < numTrials; t++ {
+		f := Field{map[string]Location{}}
+		f.addDrunk(dClass, Location{0.0, 0.0})
+		for s := 0; s < numSteps; s++ {
+			f.moveDrunk(dClass)
+		}
+		loc, err := f.getLoc(dClass)
+		if err != nil {
+			log.Fatalln("getLoc", err)
+			continue
+		}
+		locs = append(locs, loc)
+	}
+	return locs
+}
+
+func plotLocs(drunkKinds []Drunk, numSteps int, numTrials int) {
+	p, err := plot.New()
+	if err != nil {
+		log.Fatalln("plot.New()", err)
+		return
+	}
+
+	p.Title.Text = fmt.Sprintf("Location at End of Walks (%d steps)", numSteps)
+	p.X.Label.Text = "Steps East/West of Origin"
+	p.Y.Label.Text = "Steps North/South of Origin"
+	p.X.Min = -1000
+	p.X.Max = 1000
+	p.Y.Min = -1000
+	p.Y.Max = 1000
+	p.Add(plotter.NewGrid())
+
+	for d, dClass := range drunkKinds {
+		locs := getFinalLocs(numSteps, numTrials, dClass)
+		pts := make(plotter.XYs, len(locs))
+		sumX := 0.0
+		sumY := 0.0
+		for i, l := range locs {
+			pts[i].X = l.X()
+			pts[i].Y = l.Y()
+			sumX += l.X()
+			sumY += l.Y()
+		}
+		s, err := plotter.NewScatter(pts)
+		if err != nil {
+			log.Panic(err)
+		}
+		s.GlyphStyle.Color = plotutil.Color(d)
+		s.GlyphStyle.Radius = vg.Points(3)
+
+		meanX := sumX / float64(len(locs))
+		meanY := sumY / float64(len(locs))
+		legend := fmt.Sprintf("%s mean abs dist = <%.4f, %.4f>", dClass.Name(), meanX, meanY)
+
+		p.Add(s)
+		p.Legend.Add(legend, s)
+	}
+
+	if err := p.Save(8*vg.Inch, 8*vg.Inch, "scatter.png"); err != nil {
+		log.Fatalln("plot.Save()", err)
+		return
+	}
+}
+
+func main() {
+	//rand.Seed(time.Now().UTC().UnixNano())
+
+	//test_sanity()
+
+	//test_walk()
+
+	//test_plot_all()
+
+	test_plot_loc()
+}
+
+func test_sanity() {
 	p := Location{1.2, 2.3}
 	fmt.Println("p=", p)
 
@@ -176,4 +306,39 @@ func test() {
 	fmt.Println("distance=", dist)
 	dist = walk(f, masochistDrunk, 10000)
 	fmt.Println("distance=", dist)
+}
+
+func test_wak() {
+	steps := []Location{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
+	usualDrunk := Drunk{"usual", steps}
+
+	steps = []Location{{0.0, 1.1}, {0.0, -0.9}, {1.0, 0.0}, {-1.0, 0.0}}
+	masochistDrunk := Drunk{"masochist", steps}
+
+	testSteps := [...]int{1000, 10000}
+	drunkTest(testSteps[:], 100, usualDrunk)
+	drunkTest(testSteps[:], 100, masochistDrunk)
+}
+
+func test_plot_all() {
+	steps := []Location{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
+	usualDrunk := Drunk{"usual", steps}
+
+	steps = []Location{{0.0, 1.1}, {0.0, -0.9}, {1.0, 0.0}, {-1.0, 0.0}}
+	masochistDrunk := Drunk{"masochist", steps}
+
+	drunks := [...]Drunk{usualDrunk, masochistDrunk}
+	numSteps := [...]int{10, 100, 1000, 10000, 100000}
+	simAll(drunks[:], numSteps[:], 100)
+}
+
+func test_plot_loc() {
+	steps := []Location{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
+	usualDrunk := Drunk{"usual", steps}
+
+	steps = []Location{{0.0, 1.1}, {0.0, -0.9}, {1.0, 0.0}, {-1.0, 0.0}}
+	masochistDrunk := Drunk{"masochist", steps}
+
+	drunks := [...]Drunk{usualDrunk, masochistDrunk}
+	plotLocs(drunks[:], 10000, 1000)
 }
