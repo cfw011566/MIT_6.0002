@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"time"
 
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
@@ -83,6 +84,45 @@ func (f Field) moveDrunk(drunk Drunk) error {
 	}
 	xDist, yDist := drunk.takeStep()
 	f.drunks[drunk.name] = loc.move(xDist, yDist)
+
+	return nil
+}
+
+// OddField
+type OddField struct {
+	Field
+	name      string
+	wormHoles map[Location]Location
+}
+
+func (f OddField) Name() string         { return f.name }
+func (f *OddField) SetName(name string) { f.name = name }
+func (f *OddField) SetWormHoles(numHoles int, xRange int, yRange int) {
+	f.wormHoles = map[Location]Location{}
+	for w := 0; w < numHoles; w++ {
+		x := float64(rand.Intn(2*xRange) - xRange)
+		y := float64(rand.Intn(2*yRange) - yRange)
+		loc := Location{x, y}
+		newX := float64(rand.Intn(2*xRange) - xRange)
+		newY := float64(rand.Intn(2*yRange) - yRange)
+		newLoc := Location{newX, newY}
+		f.wormHoles[loc] = newLoc
+	}
+}
+
+func (f OddField) moveDrunk(drunk Drunk) error {
+	loc, ok := f.drunks[drunk.name]
+	if !ok {
+		return errors.New("OddField moveDrunk: Drunk not in the field")
+	}
+	xDist, yDist := drunk.takeStep()
+	nextLoc := loc.move(xDist, yDist)
+	newLoc, ok := f.wormHoles[nextLoc]
+	if !ok {
+		f.drunks[drunk.name] = nextLoc
+	} else {
+		f.drunks[drunk.name] = newLoc
+	}
 
 	return nil
 }
@@ -270,8 +310,68 @@ func plotLocs(drunkKinds []Drunk, numSteps int, numTrials int) {
 	}
 }
 
+func traceWalk(fieldKinds []OddField, numSteps int, xRange int, yRange int) {
+	p, err := plot.New()
+	if err != nil {
+		log.Fatalln("plot.New()", err)
+		return
+	}
+
+	p.Title.Text = fmt.Sprintf("Spots Visited on Walk (%d) steps", numSteps)
+	p.X.Label.Text = "Steps East/West of Origin"
+	p.Y.Label.Text = "Steps North/South of Origin"
+	p.X.Min = float64(-xRange)
+	p.X.Max = float64(xRange)
+	p.Y.Min = float64(-yRange)
+	p.Y.Max = float64(yRange)
+	p.Add(plotter.NewGrid())
+
+	for f, fClass := range fieldKinds {
+		steps := []Location{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
+		usualDrunk := Drunk{"usual", steps}
+		fClass.addDrunk(usualDrunk, Location{0.0, 0.0})
+
+		var locs []Location
+		for s := 0; s < numSteps; s++ {
+			fClass.moveDrunk(usualDrunk)
+			loc, err := fClass.getLoc(usualDrunk)
+			if err != nil {
+				log.Fatalln("getLoc", err)
+				continue
+			}
+			locs = append(locs, loc)
+		}
+
+		pts := make(plotter.XYs, len(locs))
+		sumX := 0.0
+		sumY := 0.0
+		for i, l := range locs {
+			pts[i].X = l.X()
+			pts[i].Y = l.Y()
+			sumX += l.X()
+			sumY += l.Y()
+		}
+		s, err := plotter.NewScatter(pts)
+		if err != nil {
+			log.Panic(err)
+		}
+		s.GlyphStyle.Color = plotutil.Color(f)
+		s.GlyphStyle.Radius = vg.Points(3)
+
+		legend := fmt.Sprintf("%s", fClass.Name())
+
+		p.Add(s)
+		p.Legend.Add(legend, s)
+	}
+
+	if err := p.Save(8*vg.Inch, 8*vg.Inch, "trace_walk.png"); err != nil {
+		log.Fatalln("plot.Save()", err)
+		return
+	}
+}
+
 func main() {
-	//rand.Seed(time.Now().UTC().UnixNano())
+	rand.Seed(time.Now().UTC().UnixNano())
 
 	//test_sanity()
 
@@ -279,7 +379,11 @@ func main() {
 
 	//test_plot_all()
 
+	//rand.Seed(0)
 	test_plot_loc()
+
+	//rand.Seed(0)
+	test_trace_walk()
 }
 
 func test_sanity() {
@@ -336,9 +440,24 @@ func test_plot_loc() {
 	steps := []Location{{0, 1}, {0, -1}, {1, 0}, {-1, 0}}
 	usualDrunk := Drunk{"usual", steps}
 
-	steps = []Location{{0.0, 1.1}, {0.0, -0.9}, {1.0, 0.0}, {-1.0, 0.0}}
+	steps = []Location{{0.0, 1.1}, {0.0, -0.9}, {1.1, 0.0}, {-0.9, 0.0}}
 	masochistDrunk := Drunk{"masochist", steps}
 
 	drunks := [...]Drunk{usualDrunk, masochistDrunk}
 	plotLocs(drunks[:], 10000, 1000)
+}
+
+func test_trace_walk() {
+	var fields []OddField
+
+	var of OddField
+	of.Field = Field{map[string]Location{}}
+	(&of).SetName("Normal")
+	fields = append(fields, of)
+
+	of.Field = Field{map[string]Location{}}
+	(&of).SetWormHoles(1000, 100, 100)
+	(&of).SetName("Odd Field")
+	fields = append(fields, of)
+	traceWalk(fields, 500, 100, 100)
 }
