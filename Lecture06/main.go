@@ -2,9 +2,20 @@ package main
 
 import (
 	"fmt"
+	"math"
 
 	"./roulette"
 )
+
+func main() {
+	//rand.Seed(time.Now().UTC().UnixNano())
+
+	test_fair()
+
+	test_all()
+
+	test_empirical()
+}
 
 func playRoulette(game roulette.Roulette, numSpins int, pocket int, bet int, toPrint bool) float64 {
 	totPocket := 0
@@ -18,14 +29,6 @@ func playRoulette(game roulette.Roulette, numSpins int, pocket int, bet int, toP
 		fmt.Printf("Expect return betting %d = %.4f%%\n", pocket, 100.0*expectReturn)
 	}
 	return expectReturn
-}
-
-func main() {
-	//rand.Seed(time.Now().UTC().UnixNano())
-
-	//test_fair()
-
-	test_all()
 }
 
 func test_fair() {
@@ -51,7 +54,6 @@ func findPocketReturn(game roulette.Roulette, numTrials int, trialSize int, toPr
 
 func test_all() {
 	numTrials := 20
-	numSpins := [...]int{1000, 10000, 100000, 1000000}
 	var games []roulette.Roulette
 	var game roulette.Roulette
 	game.Init(roulette.Fair)
@@ -60,16 +62,50 @@ func test_all() {
 	games = append(games, game)
 	game.Init(roulette.American)
 	games = append(games, game)
-	for _, spin := range numSpins {
-		fmt.Println("\nSimulate", numTrials, "trials of", spin, "spins each")
+	for _, numSpins := range [...]int{1000, 10000, 100000, 1000000} {
+		fmt.Println("\nSimulate", numTrials, "trials of", numSpins, "spins each")
 		for _, game := range games {
-			pocketReturns := findPocketReturn(game, numTrials, spin, false)
+			pocketReturns := findPocketReturn(game, numTrials, numSpins, false)
 			sum := 0.0
 			for _, r := range pocketReturns {
 				sum += r
 			}
 			expReturn := 100.8 * sum / float64(len(pocketReturns))
 			fmt.Printf("Exp. return for %s = %.4f%%\n", game, expReturn)
+		}
+	}
+}
+
+func getMeanAndStd(X []float64) (float64, float64) {
+	sum := 0.0
+	for _, x := range X {
+		sum += x
+	}
+	mean := sum / float64(len(X))
+	tot := 0.0
+	for _, x := range X {
+		tot += (x - mean) * (x - mean)
+	}
+	std := math.Pow(tot/float64(len(X)), 0.5)
+	return mean, std
+}
+
+func test_empirical() {
+	numTrials := 20
+	var games []roulette.Roulette
+	var game roulette.Roulette
+	game.Init(roulette.Fair)
+	games = append(games, game)
+	game.Init(roulette.European)
+	games = append(games, game)
+	game.Init(roulette.American)
+	games = append(games, game)
+	for _, numSpins := range [...]int{1000, 100000, 1000000} {
+		fmt.Println("\nSimulate betting a pocket for", numTrials, "trials of", numSpins, "spin each")
+		for _, game := range games {
+			pocketReturns := findPocketReturn(game, numTrials, numSpins, false)
+			mean, std := getMeanAndStd(pocketReturns)
+			fmt.Printf("Exp. return for %s = %.3f%%, +/- %.3f%% with 95%% confidence\n", game, 100.0*mean, 100.0*1.96*std)
 		}
 	}
 }
