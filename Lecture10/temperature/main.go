@@ -106,7 +106,7 @@ func plot_data() {
 	}
 	line, err := plotter.NewLine(points)
 	if err != nil {
-		log.Fatalln("plot.NewLinePoints()", err)
+		log.Fatalln("plot.NewLine()", err)
 		return
 	}
 	line.Color = color.RGBA{B: 255, A: 255}
