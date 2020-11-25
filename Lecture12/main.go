@@ -4,17 +4,14 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
+	"./cluster"
 	"gonum.org/v1/gonum/stat"
 )
-
-type Patient struct {
-	name     string
-	features []float64
-	label    float64
-}
 
 func scaleAttrs(vals []float64) []float64 {
 	mean, sd := stat.MeanStdDev(vals, nil)
@@ -24,7 +21,7 @@ func scaleAttrs(vals []float64) []float64 {
 	return vals
 }
 
-func getData(toScale bool) (patients []Patient) {
+func getData(toScale bool) (patients []cluster.Patient) {
 	f, err := os.Open("cardiacData.txt")
 	if err != nil {
 		panic(err)
@@ -62,15 +59,134 @@ func getData(toScale bool) (patients []Patient) {
 	for i := 0; i < len(hrList); i++ {
 		n := fmt.Sprintf("P%03d", i)
 		f := [...]float64{hrList[i], stElevList[i], ageList[i], prevACSList[i]}
-		p := Patient{name: n, features: f[:], label: classList[i]}
+		//p := cluster.Patient{Name: n, Features: f[:], Label: classList[i]}
+		var p cluster.Patient
+		p.Init(n, f[:], classList[i])
 		patients = append(patients, p)
 	}
 	return patients
 }
 
+func sampling(patients []cluster.Patient, size int) []cluster.Patient {
+	rand.Shuffle(len(patients), func(i, j int) {
+		patients[i], patients[j] = patients[j], patients[i]
+	})
+	samples := patients[:size]
+	return samples
+}
+
+func kmeans(examples []cluster.Patient, k int, verbose bool) []cluster.Cluster {
+	initialCentroids := sampling(examples, k)
+	//fmt.Println("initialCentroids =", initialCentroids)
+	var clusters []cluster.Cluster
+	for _, e := range initialCentroids {
+		es := [...]cluster.Patient{e}
+		c := cluster.Cluster{}
+		c.Init(es[:])
+		clusters = append(clusters, c)
+	}
+	//fmt.Println("clusters =", clusters)
+
+	converged := false
+	numIterations := 0
+	for !converged {
+		numIterations += 1
+		newClusters := make([][]cluster.Patient, k)
+		for i := 0; i < k; i++ {
+			newClusters[i] = make([]cluster.Patient, 0)
+		}
+
+		for _, e := range examples {
+			smallestDistance := e.Distance(clusters[0].Centroid())
+			index := 0
+			for i := 1; i < k; i++ {
+				distance := e.Distance(clusters[i].Centroid())
+				if distance < smallestDistance {
+					smallestDistance = distance
+					index = i
+				}
+			}
+			//fmt.Println(e, "index =", index, "distance =", smallestDistance)
+			newClusters[index] = append(newClusters[index], e)
+		}
+		//fmt.Println("new clusters 0 =", newClusters[0])
+		//fmt.Println("new clusters 1 =", newClusters[1])
+
+		for _, c := range newClusters {
+			if len(c) == 0 {
+				panic("Empty Cluster")
+			}
+		}
+
+		converged = true
+		for i := 0; i < k; i++ {
+			if clusters[i].Update(newClusters[i]) > 0.0 {
+				converged = false
+			}
+		}
+
+		if verbose {
+			fmt.Println("Iteration #", numIterations)
+			for _, c := range clusters {
+				fmt.Println(c)
+			}
+			fmt.Println("")
+		}
+	}
+	return clusters
+}
+
+func trykmeans(examples []cluster.Patient, numClusters int, numTrials int, verbose bool) []cluster.Cluster {
+	best := kmeans(examples, numClusters, verbose)
+	minDissimilarity := cluster.Dissimilarity(best)
+	trial := 1
+	for trial < numTrials {
+		clusters := kmeans(examples, numClusters, verbose)
+		currDissimilarity := cluster.Dissimilarity(clusters)
+		if currDissimilarity < minDissimilarity {
+			copy(best, clusters)
+			minDissimilarity = currDissimilarity
+		}
+		trial++
+	}
+	return best
+}
+
+func printClustering(clustering []cluster.Cluster) []float64 {
+	var posFracs []float64
+	for _, c := range clustering {
+		numPts := 0
+		numPos := 0
+		for _, p := range c.Members() {
+			numPts++
+			if p.Label() > 0.5 {
+				numPos++
+			}
+		}
+		fracPos := float64(numPos) / float64(numPts)
+		posFracs = append(posFracs, fracPos)
+		fmt.Printf("Cluster of size %d with fraction of positives = %.4f\n", numPts, fracPos)
+	}
+	return posFracs
+}
+
+func testClustering(patients []cluster.Patient, numClusters int, numTrials int) []float64 {
+	bestClustering := trykmeans(patients, numClusters, numTrials, false)
+	posFracs := printClustering(bestClustering)
+	return posFracs
+}
+
 func main() {
-	patients := getData(false)
-	fmt.Println(patients)
-	patients = getData(true)
-	fmt.Println(patients)
+	rand.Seed(time.Now().UTC().UnixNano())
+
+	//patients := getData(false)
+	//fmt.Println(patients)
+	patients := getData(true)
+	//fmt.Println(patients)
+
+	numClusters := [...]int{2, 4, 6}
+	for _, k := range numClusters {
+		fmt.Printf("\nTest k-means (k = %d)\n", k)
+		testClustering(patients, k, 2)
+	}
 }
