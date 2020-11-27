@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -75,7 +76,7 @@ func sampling(patients []cluster.Patient, size int) []cluster.Patient {
 	return samples
 }
 
-func kmeans(examples []cluster.Patient, k int, verbose bool) []cluster.Cluster {
+func kmeans(examples []cluster.Patient, k int, verbose bool) ([]cluster.Cluster, error) {
 	initialCentroids := sampling(examples, k)
 	//fmt.Println("initialCentroids =", initialCentroids)
 	var clusters []cluster.Cluster
@@ -114,7 +115,9 @@ func kmeans(examples []cluster.Patient, k int, verbose bool) []cluster.Cluster {
 
 		for _, c := range newClusters {
 			if len(c) == 0 {
-				panic("Empty Cluster")
+				//panic("Empty Cluster")
+				err := errors.New("Empty Cluster")
+				return clusters, err
 			}
 		}
 
@@ -133,15 +136,22 @@ func kmeans(examples []cluster.Patient, k int, verbose bool) []cluster.Cluster {
 			fmt.Println("")
 		}
 	}
-	return clusters
+	return clusters, nil
 }
 
 func trykmeans(examples []cluster.Patient, numClusters int, numTrials int, verbose bool) []cluster.Cluster {
-	best := kmeans(examples, numClusters, verbose)
+	best, err := kmeans(examples, numClusters, verbose)
+	if err != nil {
+		panic(err)
+		return best
+	}
 	minDissimilarity := cluster.Dissimilarity(best)
 	trial := 1
 	for trial < numTrials {
-		clusters := kmeans(examples, numClusters, verbose)
+		clusters, err := kmeans(examples, numClusters, verbose)
+		if err != nil {
+			continue
+		}
 		currDissimilarity := cluster.Dissimilarity(clusters)
 		if currDissimilarity < minDissimilarity {
 			copy(best, clusters)
