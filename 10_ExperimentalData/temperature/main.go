@@ -26,12 +26,6 @@ type tempDatum struct {
 	year int
 }
 
-type byYear []tempDatum
-
-func (x byYear) Len() int           { return len(x) }
-func (x byYear) Less(i, j int) bool { return x[i].year < x[j].year }
-func (x byYear) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
-
 func getTempData() (data []tempDatum) {
 	f, err := os.Open("temperatures.csv")
 	if err != nil {
@@ -79,7 +73,10 @@ func getYearlyMeans(data []tempDatum) (years []tempDatum) {
 func plot_data() {
 	data := getTempData()
 	years := getYearlyMeans(data)
-	sort.Sort(byYear(years))
+	//sort.Sort(byYear(years))
+	sort.Slice(years, func(i, j int) bool {
+		return years[i].year < years[j].year
+	})
 
 	var xVals, yVals []float64
 	for _, y := range years {
@@ -150,7 +147,10 @@ func splitData(xVals, yVals []float64) (trainX, trainY, testX, testY []float64) 
 func train_and_test() {
 	data := getTempData()
 	years := getYearlyMeans(data)
-	sort.Sort(byYear(years))
+	//sort.Sort(byYear(years))
+	sort.Slice(years, func(i, j int) bool {
+		return years[i].year < years[j].year
+	})
 
 	var xVals, yVals []float64
 	for _, y := range years {
