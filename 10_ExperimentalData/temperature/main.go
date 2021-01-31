@@ -73,7 +73,6 @@ func getYearlyMeans(data []tempDatum) (years []tempDatum) {
 func plot_data() {
 	data := getTempData()
 	years := getYearlyMeans(data)
-	//sort.Sort(byYear(years))
 	sort.Slice(years, func(i, j int) bool {
 		return years[i].year < years[j].year
 	})
@@ -147,7 +146,6 @@ func splitData(xVals, yVals []float64) (trainX, trainY, testX, testY []float64) 
 func train_and_test() {
 	data := getTempData()
 	years := getYearlyMeans(data)
-	//sort.Sort(byYear(years))
 	sort.Slice(years, func(i, j int) bool {
 		return years[i].year < years[j].year
 	})
